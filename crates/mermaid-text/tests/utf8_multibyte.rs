@@ -130,3 +130,59 @@ fn flowchart_inline_quoted_cyrillic_label_does_not_corrupt_next_node() {
         "no raw bracket must leak into the rendered diagram:\n{out}"
     );
 }
+
+// ---- Audit findings (same byte-vs-char class, found sweeping other parsers) --
+
+/// Audit F1 — sequence participant `<Id> as <Alias>`. `parse_participant_decl`
+/// searched for " as " in a `to_lowercase()` copy of the line, then applied that
+/// byte offset to the ORIGINAL. When case-folding changes byte length (e.g.
+/// `İ` U+0130 lowercases to a 3-byte `i̇`), the offset diverges and the slice
+/// panics or mis-splits.
+#[test]
+fn sequence_participant_case_fold_alias_does_not_panic() {
+    for src in [
+        "sequenceDiagram\n    participant İd as Сервер\n    İd->>İd: ok\n",
+        "sequenceDiagram\n    participant Straße as Backend\n    Straße->>Straße: ok\n",
+    ] {
+        let r = std::panic::catch_unwind(|| mermaid_text::render(src));
+        assert!(
+            r.is_ok(),
+            "render panicked on case-folding participant:\n{src}"
+        );
+        assert!(r.unwrap().is_ok(), "render errored:\n{src}");
+    }
+    // And the alias must be split correctly, not corrupted by a shifted offset.
+    let out =
+        mermaid_text::render("sequenceDiagram\n    participant İd as Сервер\n    İd->>İd: ok\n")
+            .expect("must render");
+    assert!(out.contains("Сервер"), "alias label must be intact:\n{out}");
+}
+
+/// Audit F2 — gantt/timeline/journey each had a local copy of the keyword-strip
+/// helper still slicing at a byte index (`line[..keyword.len()]`), so a line
+/// whose byte at that index falls mid-char panics. Exercise each parser with
+/// non-ASCII lines that land a multi-byte char across a probed keyword length.
+#[test]
+fn gantt_non_ascii_does_not_panic() {
+    let src =
+        "gantt\n    title Планирование\n    section Этап\n    Задача разработки: 2026-01-01, 3d\n";
+    let r = std::panic::catch_unwind(|| mermaid_text::render(src));
+    assert!(r.is_ok(), "gantt render panicked on non-ASCII:\n{src}");
+    assert!(r.unwrap().is_ok(), "gantt render errored:\n{src}");
+}
+
+#[test]
+fn timeline_non_ascii_does_not_panic() {
+    let src = "timeline\n    title История\n    section Эпоха\n    Событие первое\n";
+    let r = std::panic::catch_unwind(|| mermaid_text::render(src));
+    assert!(r.is_ok(), "timeline render panicked on non-ASCII:\n{src}");
+    assert!(r.unwrap().is_ok(), "timeline render errored:\n{src}");
+}
+
+#[test]
+fn journey_non_ascii_does_not_panic() {
+    let src = "journey\n    title Мой день\n    section Утро\n      Проснуться: 3: Я\n";
+    let r = std::panic::catch_unwind(|| mermaid_text::render(src));
+    assert!(r.is_ok(), "journey render panicked on non-ASCII:\n{src}");
+    assert!(r.unwrap().is_ok(), "journey render errored:\n{src}");
+}
