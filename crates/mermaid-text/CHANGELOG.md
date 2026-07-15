@@ -3,6 +3,31 @@
 All notable changes to `mermaid-text` are documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 0.56.1 — 2026-07-15 — UTF-8 safety: byte offsets used as char offsets (#29)
+
+### Fixed
+
+- **Panic on non-ASCII keyword-prefixed lines.** `strip_keyword_prefix`
+  sliced at a byte index (`line[..keyword.len()]`) without a char-boundary
+  check, so sequence/state lines such as `loop до готовности` panicked when
+  that byte landed inside a multi-byte char. Now uses `str::get`, which
+  rejects a non-boundary slice instead of crashing. Three local copies of
+  this helper (gantt, timeline, journey) that the central fix had missed
+  were removed and routed to the canonical `parser::common` version.
+- **Silent flowchart label corruption.** `try_consume_pipe_label`,
+  `try_consume_inline_compact_arrow`, and `try_consume_inline_quoted_arrow`
+  returned byte lengths that the char-indexed tokenizer added to its cursor,
+  over-advancing by `byte_len − char_len` on a multi-byte edge label (e.g.
+  `-->|да|`) and eating part of the following node (leaking its `[` bracket
+  into the label, or dropping the node). Now count chars.
+- **Participant alias mis-split.** `parse_participant_decl` searched for
+  ` as ` in a `to_lowercase()` copy and applied the byte offset to the
+  original string, desyncing when case-folding changed byte length (e.g.
+  `İ` → 3-byte `i̇`). Now scans the original string for the ASCII separator.
+
+Reported by @vshylov (#29). Pinned by 10 new regression tests covering
+each parser (`tests/utf8_multibyte.rs`).
+
 ## 0.56.0 — 2026-05-11 — Sequence-diagram polish basket (self-messages, stacked activations, box groups)
 
 ### Added
