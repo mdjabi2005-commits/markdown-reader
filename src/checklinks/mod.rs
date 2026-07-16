@@ -590,7 +590,7 @@ fn validate_links(
                     broken.push(BrokenLink {
                         line: raw.line,
                         // Show the raw target in the reason so it's grep-friendly.
-                        reason: format!("broken anchor {}", &raw.url),
+                        reason: format!("broken anchor {}", raw.url),
                         raw_target: raw.url,
                     });
                 }
@@ -604,7 +604,7 @@ fn validate_links(
                 if !resolved.exists() {
                     broken.push(BrokenLink {
                         line: raw.line,
-                        reason: format!("missing file {}", &raw.url),
+                        reason: format!("missing file {}", raw.url),
                         raw_target: raw.url,
                     });
                 }
@@ -615,7 +615,7 @@ fn validate_links(
                 if !resolved.exists() {
                     broken.push(BrokenLink {
                         line: raw.line,
-                        reason: format!("missing file {}", &raw.url),
+                        reason: format!("missing file {}", raw.url),
                         raw_target: raw.url,
                     });
                 } else {
@@ -629,7 +629,7 @@ fn validate_links(
                     if !anchors.contains(&anchor) {
                         broken.push(BrokenLink {
                             line: raw.line,
-                            reason: format!("broken cross-file anchor {}", &raw.url),
+                            reason: format!("broken cross-file anchor {}", raw.url),
                             raw_target: raw.url,
                         });
                     }
