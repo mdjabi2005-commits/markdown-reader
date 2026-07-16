@@ -41,6 +41,23 @@ ignore = [
     # when resvg/usvg ship a release that no longer pulls ttf-parser:
     #   https://github.com/harfbuzz/ttf-parser/issues/217
     "RUSTSEC-2026-0192", # ttf-parser 0.25.1 unmaintained (via mermaid-rs-renderer/resvg)
+    # rustybuzz declared unmaintained (RUSTSEC-2026-0206, 2026-07). Same
+    # internally-generated-SVG stack as ttf-parser above
+    # (mermaid-rs-renderer → usvg/resvg → rustybuzz); the advisory states no
+    # safe upgrade is available. Unmaintained notice, not a vulnerability.
+    # Drops out when the resvg/usvg ecosystem migrates off it:
+    #   https://github.com/harfbuzz/rustybuzz/issues
+    "RUSTSEC-2026-0206", # rustybuzz 0.20.1 unmaintained (via mermaid-rs-renderer/resvg)
+    # quick-xml < 0.41 DoS on maliciously-crafted XML (duplicate-attr
+    # quadratic blowup / unbounded namespace allocation). Reached ONLY via
+    # syntect → plist parsing our BUNDLED .tmTheme/.plist theme files — the
+    # XML is shipped in-binary, never attacker-controlled, so the DoS is not
+    # reachable in this app. The fix needs quick-xml 0.41 (a semver-breaking
+    # 0.x bump) and `plist` pins the 0.38 line, so there is no upgrade path
+    # from our side. Drop when plist releases against quick-xml >= 0.41:
+    #   https://github.com/ebarnard/rust-plist/issues
+    "RUSTSEC-2026-0194", # quick-xml 0.38.4 duplicate-attr DoS (via syntect/plist, bundled themes only)
+    "RUSTSEC-2026-0195", # quick-xml 0.38.4 namespace-alloc DoS (via syntect/plist, bundled themes only)
 ]
 
 # ---- Licenses -----------------------------------------------------------------
