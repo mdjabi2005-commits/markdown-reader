@@ -5,6 +5,19 @@ All notable changes to `markdown-tui-explorer` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.74] — 2026-07-15
+
+### Fixed — mermaid-text UTF-8 safety (#29)
+
+Bumps the bundled `mermaid-text` to 0.56.1, which fixes panics and silent
+label corruption when rendering mermaid diagrams that contain non-ASCII
+(e.g. Cyrillic) text — byte offsets were being used where character offsets
+were expected. Concretely, a mermaid **sequence** diagram with a non-ASCII
+participant/keyword line could **crash the viewer**, and a non-ASCII
+**flowchart** could render a corrupted diagram (brackets leaking into
+labels, nodes dropped). See the mermaid-text 0.56.1 changelog for the full
+list of parser fixes. Reported by @vshylov.
+
 ## [1.34.73] — 2026-06-22
 
 ### Changed — dependency bump: ratatui-image 11 (#24)
