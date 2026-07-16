@@ -25,8 +25,13 @@ This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
   original string, desyncing when case-folding changed byte length (e.g.
   `İ` → 3-byte `i̇`). Now scans the original string for the ASCII separator.
 
-Reported by @vshylov (#29). Pinned by 10 new regression tests covering
-each parser (`tests/utf8_multibyte.rs`).
+Reported **and originally fixed** by @vshylov — issue #29 and PR #30, which
+carried the `strip_keyword_prefix`, `try_consume_pipe_label`, and
+`try_consume_inline_compact_arrow` fixes above. The remaining sites (the
+inline-quoted arrow, the participant-alias case-folding split, and the
+gantt/timeline/journey helper copies) were found in a follow-up audit and
+stacked on top. Pinned by 10 new regression tests covering each parser
+(`tests/utf8_multibyte.rs`).
 
 ## 0.56.0 — 2026-05-11 — Sequence-diagram polish basket (self-messages, stacked activations, box groups)
 

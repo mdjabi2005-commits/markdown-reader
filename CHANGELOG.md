@@ -16,7 +16,7 @@ were expected. Concretely, a mermaid **sequence** diagram with a non-ASCII
 participant/keyword line could **crash the viewer**, and a non-ASCII
 **flowchart** could render a corrupted diagram (brackets leaking into
 labels, nodes dropped). See the mermaid-text 0.56.1 changelog for the full
-list of parser fixes. Reported by @vshylov.
+list of parser fixes. Reported and originally fixed by @vshylov (#29, #30).
 
 ## [1.34.73] — 2026-06-22
 
