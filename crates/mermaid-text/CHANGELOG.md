@@ -3,6 +3,29 @@
 All notable changes to `mermaid-text` are documented in this file.
 This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## 0.57.0 — 2026-07-21 — Opt-in hard `max_width` budget (#32)
+
+### Added
+
+- **`RenderOptions::max_width_strict`** (default `false`). When `true` and
+  `max_width` is `Some(n)`, a render whose widest line still exceeds `n`
+  **display columns** returns the new **`Error::TooWide { requested, actual }`**
+  instead of an over-wide string. This turns `max_width` from a soft hint into
+  a hard budget, so an embedder with a fixed panel width gets a "fits or tells
+  you it can't" contract and can fall back knowingly (e.g. to fenced source)
+  without post-measuring every line. Width is measured in display columns and
+  ignores ANSI escapes emitted by `color`. Requested by @vshylov (#32).
+- **`mermaid-text --strict`** CLI flag: with `--width N`, exit non-zero when
+  the widest line still exceeds `N`.
+
+### Changed (breaking, per 0.x semver)
+
+- `RenderOptions` gains a field and `Error` gains a variant. Callers that
+  construct `RenderOptions` with a full struct literal (rather than
+  `..Default::default()`) or match `Error` exhaustively need a trivial update.
+  Existing `render`/`render_with_width`/`render_with_options` behaviour is
+  unchanged when `max_width_strict` is left at its `false` default.
+
 ## 0.56.1 — 2026-07-15 — UTF-8 safety: byte offsets used as char offsets (#29)
 
 ### Fixed
