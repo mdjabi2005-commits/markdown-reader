@@ -5,6 +5,15 @@ All notable changes to `markdown-tui-explorer` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.34.75] — 2026-07-21
+
+### Changed — bundle mermaid-text 0.57.0
+
+Bumps the bundled `mermaid-text` to 0.57.0, which adds an opt-in hard
+`max_width` budget (`RenderOptions::max_width_strict` → `Error::TooWide`)
+for embedders with a fixed panel width (#32). No user-visible change to the
+viewer itself — the diagram pane continues to render at natural width.
+
 ## [1.34.74] — 2026-07-15
 
 ### Fixed — mermaid-text UTF-8 safety (#29)
