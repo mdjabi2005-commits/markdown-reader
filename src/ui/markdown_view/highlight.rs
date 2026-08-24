@@ -1,9 +1,10 @@
 use super::state::VisualRange;
-use crate::theme::Tokens;
+use crate::{checkpoint::DiffKind, theme::Tokens};
 use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
 };
+use std::collections::HashMap;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// Decide which lines in a visible block slice need highlighting and apply the
@@ -283,6 +284,31 @@ pub fn patch_cursor_highlight(lines: &mut [Line<'static>], idx: usize, bg: Color
     } else {
         for span in &mut line.spans {
             span.style = span.style.patch(Style::default().bg(bg));
+        }
+    }
+}
+
+/// Highlight full rendered rows whose source line is touched by a checkpoint.
+pub fn apply_source_line_diff(
+    lines: &mut [Line<'static>],
+    source_lines: &[u32],
+    physical_to_logical: Option<&[u32]>,
+    targets: &HashMap<u32, DiffKind>,
+    added_bg: Color,
+) {
+    for (physical, line) in lines.iter_mut().enumerate() {
+        let logical = physical_to_logical
+            .and_then(|mapping| mapping.get(physical).copied())
+            .unwrap_or_else(|| crate::cast::u32_sat(physical));
+        let Some(source) = source_lines.get(logical as usize) else {
+            continue;
+        };
+        if let Some(kind) = targets.get(source) {
+            let bg = match kind {
+                DiffKind::Added => added_bg,
+                DiffKind::Deleted => Color::Red,
+            };
+            patch_cursor_highlight(std::slice::from_mut(line), 0, bg);
         }
     }
 }

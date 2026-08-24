@@ -383,6 +383,8 @@ pub struct App {
     pub allowed_paths: Option<Vec<PathBuf>>,
     /// Read-only display overrides, used by checkpoint diffs.
     pub content_overrides: HashMap<PathBuf, String>,
+    /// Added/deleted source lines for each read-only checkpoint file.
+    pub diff_lines: HashMap<PathBuf, HashMap<u32, crate::checkpoint::DiffKind>>,
     /// Active theme.
     pub theme: Theme,
     /// Cached style palette derived from `theme`.
@@ -525,6 +527,7 @@ impl App {
             initial_display_name,
             allowed_paths,
             HashMap::new(),
+            HashMap::new(),
         )
     }
 
@@ -535,6 +538,7 @@ impl App {
         initial_display_name: Option<String>,
         allowed_paths: Option<Vec<PathBuf>>,
         content_overrides: HashMap<PathBuf, String>,
+        diff_lines: HashMap<PathBuf, HashMap<u32, crate::checkpoint::DiffKind>>,
     ) -> Self {
         let config = Config::load();
         let palette = Palette::from_theme(config.theme);
@@ -580,6 +584,7 @@ impl App {
             root,
             allowed_paths,
             content_overrides,
+            diff_lines,
             theme: config.theme,
             palette,
             tokens,

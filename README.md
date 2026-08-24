@@ -66,9 +66,11 @@ TOML, and text. Markdown remains editable; structured formats are read-only.
 Files explicitly authorized by a manifest but using another text extension are
 also shown as read-only source.
 `--checkpoint [DIR]` opens a read-only checkpoint view: `Files` contains the
-files changed since `HEAD`, and each file shows its complete current content
-followed by its Git diff. Use `--checkpoint-base REF` to compare with another
-Git ref.
+files changed since `HEAD` without an extension filter, and each file shows its
+complete target content with deleted lines in red and added lines in green.
+The current cursor line is yellow. Use `--checkpoint-base REF` to compare
+with another Git ref, or add `--checkpoint-target REF` to compare two commits
+directly. Without a target, the working tree remains the target.
 `--list-formats [DIR]` counts every extension under a directory, including
 formats not yet supported by the reader.
 

@@ -123,13 +123,17 @@ struct Cli {
     #[arg(long, value_name = "NAME", conflicts_with_all = ["export_html", "check_links"])]
     section: Option<String>,
 
-    /// Print a read-only Git checkpoint observation and exit.
+    /// Open a read-only Git checkpoint view.
     #[arg(long, value_name = "DIR", num_args = 0..=1, default_missing_value = ".")]
     checkpoint: Option<PathBuf>,
 
     /// Git ref used as the checkpoint comparison base (default: HEAD).
     #[arg(long, value_name = "REF", requires = "checkpoint")]
     checkpoint_base: Option<String>,
+
+    /// Optional Git ref to compare against the checkpoint base instead of the working tree.
+    #[arg(long, value_name = "REF", requires = "checkpoint")]
+    checkpoint_target: Option<String>,
 
     /// Newline-delimited files or directories to expose under the tree root.
     #[arg(long, value_name = "FILE")]
@@ -205,7 +209,11 @@ async fn main() -> Result<()> {
             .canonicalize()
             .with_context(|| format!("could not resolve path: {}", dir.display()))?;
         let base = cli.checkpoint_base.as_deref().unwrap_or("HEAD");
-        Some(checkpoint::prepare(&root, base)?)
+        Some(checkpoint::prepare(
+            &root,
+            base,
+            cli.checkpoint_target.as_deref(),
+        )?)
     } else {
         None
     };
@@ -366,25 +374,38 @@ async fn main() -> Result<()> {
         }
     };
 
-    let (allowed_paths, content_overrides) = if let Some(scope) = checkpoint_scope.as_ref() {
-        (Some(scope.paths.clone()), scope.previews.clone())
-    } else if let Some(manifest) = cli.manifest.as_ref() {
-        let manifest = manifest
-            .canonicalize()
-            .with_context(|| format!("could not resolve manifest: {}", manifest.display()))?;
-        let paths = document::read_manifest(&root, &manifest)?;
-        if let Some(file) = initial_file.as_ref()
-            && !paths.contains(file)
-        {
-            anyhow::bail!(
-                "initial file is outside the supplied manifest: {}",
-                file.display()
-            );
-        }
-        (Some(paths), std::collections::HashMap::new())
-    } else {
-        (None, std::collections::HashMap::new())
-    };
+    let (allowed_paths, content_overrides, diff_lines) =
+        if let Some(scope) = checkpoint_scope.as_ref() {
+            (
+                Some(scope.paths.clone()),
+                scope.previews.clone(),
+                scope.diff_lines.clone(),
+            )
+        } else if let Some(manifest) = cli.manifest.as_ref() {
+            let manifest = manifest
+                .canonicalize()
+                .with_context(|| format!("could not resolve manifest: {}", manifest.display()))?;
+            let paths = document::read_manifest(&root, &manifest)?;
+            if let Some(file) = initial_file.as_ref()
+                && !paths.contains(file)
+            {
+                anyhow::bail!(
+                    "initial file is outside the supplied manifest: {}",
+                    file.display()
+                );
+            }
+            (
+                Some(paths),
+                std::collections::HashMap::new(),
+                std::collections::HashMap::new(),
+            )
+        } else {
+            (
+                None,
+                std::collections::HashMap::new(),
+                std::collections::HashMap::new(),
+            )
+        };
 
     // A manifest may combine project files with profile knowledge files. Use
     // their smallest common directory only as the virtual tree root; discovery
@@ -437,6 +458,7 @@ async fn main() -> Result<()> {
         initial_display_name,
         allowed_paths,
         content_overrides,
+        diff_lines,
     )
     .run(&mut terminal)
     .await;

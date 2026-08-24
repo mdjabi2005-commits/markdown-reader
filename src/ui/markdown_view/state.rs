@@ -259,9 +259,9 @@ impl MarkdownViewState {
 
     /// Load content that is already formatted for the Markdown renderer.
     ///
-    /// Checkpoint previews use this path because their display combines the
-    /// complete file with a fenced Git diff and must not be reparsed according
-    /// to the file's original extension.
+    /// Checkpoint previews use this path because structured files and inline
+    /// Git additions/deletions are already adapted for display and must not be
+    /// reparsed according to their original extension.
     pub fn load_display(
         &mut self,
         path: PathBuf,

@@ -171,28 +171,35 @@ pub fn display_source(path: &Path, content: &str) -> String {
     }
 }
 
-/// Render a full working-tree file followed by its checkpoint changes.
-pub fn checkpoint_preview(path: &Path, content: &str, diff: &str, base_ref: &str) -> String {
-    let source = display_source(path, content);
-    if diff.is_empty() {
-        return source;
+/// Render the current file for a read-only checkpoint view.
+pub fn checkpoint_source(path: &Path, content: &str) -> String {
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase);
+    match extension.as_deref() {
+        Some("md") | Some("markdown") => content.to_string(),
+        Some("mmd") => fenced("mermaid", content),
+        Some("json") | Some("jsonl") => fenced("json", content),
+        Some("yaml") | Some("yml") => fenced("yaml", content),
+        Some("toml") => fenced("toml", content),
+        Some("txt") => fenced("text", content),
+        Some(language) => fenced(language, content),
+        None => fenced("text", content),
     }
-    format!(
-        "{source}\n\n---\n\n## Changes since `{base_ref}`\n\n{}",
-        diff_preview(diff)
-    )
 }
 
-/// Render a diff as a read-only syntax-highlighted block.
-pub fn diff_preview(diff: &str) -> String {
-    fenced(
-        "diff",
-        if diff.is_empty() {
-            "(no textual diff)"
-        } else {
-            diff
-        },
-    )
+/// Map a raw Git source line to its checkpoint display line.
+pub fn checkpoint_source_line(path: &Path, source_line: u32) -> u32 {
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase);
+    if matches!(extension.as_deref(), Some("md") | Some("markdown")) {
+        source_line
+    } else {
+        source_line + 1
+    }
 }
 
 fn fenced(language: &str, content: &str) -> String {
@@ -227,6 +234,18 @@ mod tests {
         );
         assert!(
             display_source(Path::new("events.jsonl"), r#"{"ok":true}"#).contains("\"ok\": true")
+        );
+    }
+
+    #[test]
+    fn checkpoint_source_keeps_markdown_preview_and_fences_code() {
+        assert_eq!(
+            checkpoint_source(Path::new("readme.md"), "# Title"),
+            "# Title"
+        );
+        assert_eq!(
+            checkpoint_source(Path::new("main.rs"), "fn main() {}"),
+            "```rs\nfn main() {}\n```\n"
         );
     }
 

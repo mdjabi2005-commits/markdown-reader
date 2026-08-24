@@ -437,7 +437,12 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                         }
                     } else {
                         match doc_block {
-                            DocBlock::Text { id, text, .. } => {
+                            DocBlock::Text {
+                                id,
+                                text,
+                                source_lines,
+                                ..
+                            } => {
                                 // Look up the pre-wrapped layout for this block. On the
                                 // very first draw the cache may not be populated yet
                                 // (race between width-change path and first paint); call
@@ -489,6 +494,21 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                                         Text::from(wrapped_lines)
                                     };
 
+                                if let Some(targets) = tab
+                                    .view
+                                    .current_path
+                                    .as_ref()
+                                    .and_then(|path| app.diff_lines.get(path))
+                                {
+                                    crate::ui::markdown_view::highlight::apply_source_line_diff(
+                                        &mut full_text.lines,
+                                        source_lines,
+                                        physical_to_logical.as_deref(),
+                                        targets,
+                                        app.palette.git_new,
+                                    );
+                                }
+
                                 let block_end_visual = block_start + block_height;
                                 if focused {
                                     // In Phase 3 the wrapped lines ARE the visual rows —
@@ -501,7 +521,7 @@ pub fn draw(f: &mut Frame, app: &mut App, area: Rect, focused: bool) {
                                         cursor_line,
                                         block_start,
                                         block_end_visual,
-                                        app.tokens.state.selection_bg,
+                                        app.tokens.state.search_bg,
                                     );
 
                                     // Single-cell cursor highlight at the cursor's physical
