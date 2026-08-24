@@ -171,6 +171,30 @@ pub fn display_source(path: &Path, content: &str) -> String {
     }
 }
 
+/// Render a full working-tree file followed by its checkpoint changes.
+pub fn checkpoint_preview(path: &Path, content: &str, diff: &str, base_ref: &str) -> String {
+    let source = display_source(path, content);
+    if diff.is_empty() {
+        return source;
+    }
+    format!(
+        "{source}\n\n---\n\n## Changes since `{base_ref}`\n\n{}",
+        diff_preview(diff)
+    )
+}
+
+/// Render a diff as a read-only syntax-highlighted block.
+pub fn diff_preview(diff: &str) -> String {
+    fenced(
+        "diff",
+        if diff.is_empty() {
+            "(no textual diff)"
+        } else {
+            diff
+        },
+    )
+}
+
 fn fenced(language: &str, content: &str) -> String {
     format!("```{language}\n{}\n```\n", content.trim_end_matches('\n'))
 }

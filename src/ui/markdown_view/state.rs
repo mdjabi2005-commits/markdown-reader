@@ -254,6 +254,22 @@ impl MarkdownViewState {
         theme: crate::theme::Theme,
     ) {
         let display_content = crate::document::display_source(&path, &content);
+        self.load_display(path, file_name, display_content, palette, theme);
+    }
+
+    /// Load content that is already formatted for the Markdown renderer.
+    ///
+    /// Checkpoint previews use this path because their display combines the
+    /// complete file with a fenced Git diff and must not be reparsed according
+    /// to the file's original extension.
+    pub fn load_display(
+        &mut self,
+        path: PathBuf,
+        file_name: String,
+        display_content: String,
+        palette: &Palette,
+        theme: crate::theme::Theme,
+    ) {
         let blocks = crate::markdown::renderer::render_markdown(&display_content, palette, theme);
         self.total_lines = blocks.iter().map(crate::markdown::DocBlock::height).sum();
         self.rendered = blocks;

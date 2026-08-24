@@ -65,8 +65,10 @@ Supported previews include Markdown, Mermaid (`.mmd`), JSON, JSONL, YAML,
 TOML, and text. Markdown remains editable; structured formats are read-only.
 Files explicitly authorized by a manifest but using another text extension are
 also shown as read-only source.
-`--checkpoint [DIR]` prints a read-only Git observation with branch, HEAD,
-base ref, status, and diff.
+`--checkpoint [DIR]` opens a read-only checkpoint view: `Files` contains the
+files changed since `HEAD`, and each file shows its complete current content
+followed by its Git diff. Use `--checkpoint-base REF` to compare with another
+Git ref.
 `--list-formats [DIR]` counts every extension under a directory, including
 formats not yet supported by the reader.
 

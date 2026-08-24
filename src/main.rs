@@ -200,14 +200,15 @@ fn redirect_stdin_to_tty() -> Result<()> {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    if let Some(ref dir) = cli.checkpoint {
+    let checkpoint_scope = if let Some(ref dir) = cli.checkpoint {
         let root = dir
             .canonicalize()
             .with_context(|| format!("could not resolve path: {}", dir.display()))?;
         let base = cli.checkpoint_base.as_deref().unwrap_or("HEAD");
-        println!("{}", checkpoint::inspect(&root, base)?.render());
-        return Ok(());
-    }
+        Some(checkpoint::prepare(&root, base)?)
+    } else {
+        None
+    };
 
     if let Some(ref dir) = cli.list_formats {
         let root = dir
@@ -320,7 +321,7 @@ async fn main() -> Result<()> {
     // a temp file and open THAT — the path argument is ignored in this
     // mode. The temp file must outlive the App, so hold it in a binding
     // here and let it drop on main()'s return.
-    let stdin_temp = if std::io::stdin().is_terminal() {
+    let stdin_temp = if checkpoint_scope.is_some() || std::io::stdin().is_terminal() {
         None
     } else {
         let temp = drain_stdin_to_temp()?;
@@ -334,7 +335,10 @@ async fn main() -> Result<()> {
     //
     // When stdin was piped, `initial_display_name` is set to `"<stdin>"` so the
     // tab bar shows a conventional Unix sentinel instead of the temp-file name.
-    let (root, initial_file, initial_display_name) = if let Some(temp) = stdin_temp.as_ref() {
+    let (root, initial_file, initial_display_name) = if let Some(scope) = checkpoint_scope.as_ref()
+    {
+        (scope.root.clone(), scope.paths.first().cloned(), None)
+    } else if let Some(temp) = stdin_temp.as_ref() {
         // stdin mode: temp file's parent (typically /tmp) is the tree
         // root, and the temp file is the initial focused tab.
         let path = temp.path().canonicalize()?;
@@ -362,7 +366,9 @@ async fn main() -> Result<()> {
         }
     };
 
-    let allowed_paths = if let Some(manifest) = cli.manifest.as_ref() {
+    let (allowed_paths, content_overrides) = if let Some(scope) = checkpoint_scope.as_ref() {
+        (Some(scope.paths.clone()), scope.previews.clone())
+    } else if let Some(manifest) = cli.manifest.as_ref() {
         let manifest = manifest
             .canonicalize()
             .with_context(|| format!("could not resolve manifest: {}", manifest.display()))?;
@@ -375,9 +381,9 @@ async fn main() -> Result<()> {
                 file.display()
             );
         }
-        Some(paths)
+        (Some(paths), std::collections::HashMap::new())
     } else {
-        None
+        (None, std::collections::HashMap::new())
     };
 
     // A manifest may combine project files with profile knowledge files. Use
@@ -425,9 +431,15 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let result = App::new_with_paths(root, initial_file, initial_display_name, allowed_paths)
-        .run(&mut terminal)
-        .await;
+    let result = App::new_with_content(
+        root,
+        initial_file,
+        initial_display_name,
+        allowed_paths,
+        content_overrides,
+    )
+    .run(&mut terminal)
+    .await;
     // Keep `stdin_temp` alive until after the App exits so the file
     // doesn't get unlinked while the App is reading it. Dropping it
     // here removes the temp file on disk.

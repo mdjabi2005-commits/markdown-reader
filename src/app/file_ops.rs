@@ -192,10 +192,11 @@ impl App {
         let Some(tx) = self.action_tx.clone() else {
             return;
         };
+        let override_content = self.content_overrides.get(&path).cloned();
 
         tokio::task::spawn_blocking(move || {
-            match std::fs::read_to_string(&path) {
-                Ok(content) => {
+            match override_content.or_else(|| std::fs::read_to_string(&path).ok()) {
+                Some(content) => {
                     let _ = tx.send(Action::FileLoaded {
                         path,
                         content,
@@ -203,7 +204,7 @@ impl App {
                         display_name,
                     });
                 }
-                Err(_) => {
+                None => {
                     // Notify the main task so it can clear any pending_jump
                     // registered for this path.  No user-facing message yet.
                     let _ = tx.send(Action::FileLoadFailed { path });
@@ -255,7 +256,12 @@ impl App {
                 .find_tab_by_path_mut(&path)
                 .expect("tab must exist after is_some() guard");
             let theme = self.theme;
-            tab.view.load(path.clone(), name, content, &palette, theme);
+            if self.content_overrides.contains_key(&path) {
+                tab.view
+                    .load_display(path.clone(), name, content, &palette, theme);
+            } else {
+                tab.view.load(path.clone(), name, content, &palette, theme);
+            }
         }
 
         // Apply a pending jump-to-source-line if one was registered for this path.
@@ -442,8 +448,9 @@ impl App {
         }) else {
             return;
         };
-        if !crate::document::is_editable(&path)
-            && !crate::document::is_editable(std::path::Path::new(&file_name))
+        if self.content_overrides.contains_key(&path)
+            || (!crate::document::is_editable(&path)
+                && !crate::document::is_editable(std::path::Path::new(&file_name)))
         {
             self.status_message = Some("Format en lecture seule".to_string());
             return;
@@ -491,6 +498,10 @@ impl App {
         let Some(path) = tab.view.current_path.clone() else {
             return;
         };
+        if self.content_overrides.contains_key(&path) {
+            self.status_message = Some("Checkpoint en lecture seule".to_string());
+            return;
+        }
 
         let content = crate::ui::editor::extract_text(&editor.state);
         let Some(tx) = self.action_tx.clone() else {
@@ -638,8 +649,9 @@ impl App {
         }) else {
             return;
         };
-        if !crate::document::is_editable(&path)
-            && !crate::document::is_editable(std::path::Path::new(&file_name))
+        if self.content_overrides.contains_key(&path)
+            || (!crate::document::is_editable(&path)
+                && !crate::document::is_editable(std::path::Path::new(&file_name)))
         {
             self.status_message = Some("Format en lecture seule".to_string());
             return;
@@ -758,6 +770,10 @@ impl App {
         let Some(path) = tab.view.current_path.clone() else {
             return;
         };
+        if self.content_overrides.contains_key(&path) {
+            self.status_message = Some("Checkpoint en lecture seule".to_string());
+            return;
+        }
 
         let content = hybrid.source.clone();
         let Some(tx) = self.action_tx.clone() else {

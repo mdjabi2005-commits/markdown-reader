@@ -381,6 +381,8 @@ pub struct App {
     pub root: PathBuf,
     /// Optional explicit scope supplied by a manifest; `None` means the whole root.
     pub allowed_paths: Option<Vec<PathBuf>>,
+    /// Read-only display overrides, used by checkpoint diffs.
+    pub content_overrides: HashMap<PathBuf, String>,
     /// Active theme.
     pub theme: Theme,
     /// Cached style palette derived from `theme`.
@@ -517,6 +519,23 @@ impl App {
         initial_display_name: Option<String>,
         allowed_paths: Option<Vec<PathBuf>>,
     ) -> Self {
+        Self::new_with_content(
+            root,
+            initial_file,
+            initial_display_name,
+            allowed_paths,
+            HashMap::new(),
+        )
+    }
+
+    /// Construct an app with explicit paths and read-only display overrides.
+    pub fn new_with_content(
+        root: PathBuf,
+        initial_file: Option<PathBuf>,
+        initial_display_name: Option<String>,
+        allowed_paths: Option<Vec<PathBuf>>,
+        content_overrides: HashMap<PathBuf, String>,
+    ) -> Self {
         let config = Config::load();
         let palette = Palette::from_theme(config.theme);
         let tokens = Tokens::from_theme(config.theme);
@@ -560,6 +579,7 @@ impl App {
             tree_width_pct: 25,
             root,
             allowed_paths,
+            content_overrides,
             theme: config.theme,
             palette,
             tokens,
@@ -653,8 +673,9 @@ impl App {
 
         for tab_session in &session.tabs {
             let path = &tab_session.file;
+            let override_content = self.content_overrides.get(path).cloned();
             if path.as_os_str().is_empty()
-                || !path.exists()
+                || (!path.exists() && override_content.is_none())
                 || !path.starts_with(&self.root)
                 || self
                     .allowed_paths
@@ -663,9 +684,10 @@ impl App {
             {
                 continue;
             }
-            let Ok(content) = std::fs::read_to_string(path) else {
-                continue;
-            };
+            let content = override_content
+                .clone()
+                .or_else(|| std::fs::read_to_string(path).ok());
+            let Some(content) = content else { continue };
             let name = path
                 .file_name()
                 .unwrap_or_default()
@@ -681,8 +703,13 @@ impl App {
                     .tabs
                     .active_tab_mut()
                     .expect("active tab must exist after open_or_focus");
-                tab.view
-                    .load(path.clone(), name, content, &self.palette, self.theme);
+                if override_content.is_some() {
+                    tab.view
+                        .load_display(path.clone(), name, content, &self.palette, self.theme);
+                } else {
+                    tab.view
+                        .load(path.clone(), name, content, &self.palette, self.theme);
+                }
                 let max_scroll = tab.view.total_lines.saturating_sub(1);
                 let clamped = scroll.min(max_scroll);
                 tab.view.scroll_offset = clamped;
