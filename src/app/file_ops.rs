@@ -361,7 +361,7 @@ impl App {
 
             // Spurious watcher event: content is identical — skip the reload to
             // avoid resetting cursor_line / scroll_offset to 0.
-            if content == tab.view.content {
+            if crate::document::display_source(&path, &content) == tab.view.content {
                 continue;
             }
 
@@ -434,6 +434,20 @@ impl App {
     /// The editor starts in Normal mode (matching vim's default).  The user must
     /// press `i` inside the editor to begin inserting text.
     pub fn enter_edit_mode(&mut self) {
+        let Some((path, file_name)) = self.tabs.active_tab().and_then(|tab| {
+            tab.view
+                .current_path
+                .clone()
+                .map(|path| (path, tab.view.file_name.clone()))
+        }) else {
+            return;
+        };
+        if !crate::document::is_editable(&path)
+            && !crate::document::is_editable(std::path::Path::new(&file_name))
+        {
+            self.status_message = Some("Format en lecture seule".to_string());
+            return;
+        }
         let Some(tab) = self.tabs.active_tab_mut() else {
             return;
         };
@@ -616,6 +630,20 @@ impl App {
     /// are no-ops; only `:q` does anything.  Sub-phase 5 adds cursor movement
     /// and sub-phase 6 adds editing.
     pub fn enter_hybrid_mode(&mut self) {
+        let Some((path, file_name)) = self.tabs.active_tab().and_then(|tab| {
+            tab.view
+                .current_path
+                .clone()
+                .map(|path| (path, tab.view.file_name.clone()))
+        }) else {
+            return;
+        };
+        if !crate::document::is_editable(&path)
+            && !crate::document::is_editable(std::path::Path::new(&file_name))
+        {
+            self.status_message = Some("Format en lecture seule".to_string());
+            return;
+        }
         let Some(tab) = self.tabs.active_tab_mut() else {
             return;
         };

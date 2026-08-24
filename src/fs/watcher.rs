@@ -7,7 +7,7 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 
 /// Spawn a filesystem watcher that sends [`Action::FilesChanged`] whenever a
-/// markdown file under `root` changes on disk.
+/// supported document under `root` changes on disk.
 ///
 /// The returned [`Debouncer`] must be kept alive for as long as watching is
 /// desired; dropping it stops the watcher.
@@ -34,10 +34,7 @@ pub fn spawn_watcher(
             let changed: Vec<_> = events
                 .iter()
                 .filter(|e| {
-                    e.kind == DebouncedEventKind::Any
-                        && e.path
-                            .extension()
-                            .is_some_and(|ext| ext == "md" || ext == "markdown")
+                    e.kind == DebouncedEventKind::Any && crate::document::is_supported(&e.path)
                 })
                 .map(|e| e.path.clone())
                 .collect();

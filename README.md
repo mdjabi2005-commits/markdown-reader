@@ -46,6 +46,30 @@ raw markdown source while every other block stays formatted.
   document stays fully rendered. Tables open a dedicated editor; Mermaid
   blocks re-render the moment you leave them.
 
+## Scoped artifact reading
+
+The tree can be limited to a newline-delimited manifest of files or
+directories. This lets a workflow such as Lamoms select the active journey;
+the reader then navigates only its artifacts, without choosing between
+journeys itself:
+
+```text
+markdown-reader --manifest /path/to/journey.manifest
+```
+
+Manifest entries may be absolute paths from different project or knowledge
+roots. The `Files` panel is built only from those entries; the common parent is
+used as a virtual tree root and is never scanned.
+
+Supported previews include Markdown, Mermaid (`.mmd`), JSON, JSONL, YAML,
+TOML, and text. Markdown remains editable; structured formats are read-only.
+Files explicitly authorized by a manifest but using another text extension are
+also shown as read-only source.
+`--checkpoint [DIR]` prints a read-only Git observation with branch, HEAD,
+base ref, status, and diff.
+`--list-formats [DIR]` counts every extension under a directory, including
+formats not yet supported by the reader.
+
 ## vs other terminal markdown tools
 
 | Feature | markdown-reader | treemd | glow | bat |

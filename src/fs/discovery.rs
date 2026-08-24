@@ -2,10 +2,10 @@ use ignore::{WalkBuilder, WalkState};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-/// A node in the discovered markdown file tree.
+/// A node in the discovered document file tree.
 ///
 /// Directories are included only when they (transitively) contain at least one
-/// markdown file. Non-markdown files are excluded entirely.
+/// supported document. Unsupported files are excluded entirely.
 #[derive(Debug, Clone)]
 pub struct FileEntry {
     /// Absolute path to the file or directory.
@@ -19,7 +19,7 @@ pub struct FileEntry {
 }
 
 impl FileEntry {
-    /// Walk `root` and return a sorted tree of markdown-related entries.
+    /// Walk `root` and return a sorted tree of supported document entries.
     ///
     /// The tree is sorted with directories before files, then alphabetically
     /// within each group. Hidden directories and paths matched by `.gitignore`
@@ -29,8 +29,14 @@ impl FileEntry {
     ///
     /// * `root` - The directory to start from.
     pub fn discover(root: &Path) -> Vec<FileEntry> {
-        let markdown_paths = walk_markdown_files(root);
-        build_tree(root, markdown_paths)
+        let document_paths = walk_document_files(root);
+        build_tree(root, document_paths)
+    }
+
+    /// Build a tree from an explicit file manifest, keeping the same root and
+    /// navigation behavior as regular discovery.
+    pub fn discover_paths(root: &Path, paths: &[PathBuf]) -> Vec<FileEntry> {
+        build_tree(root, paths.to_vec())
     }
 
     /// Collect all non-directory paths from the tree into a flat `Vec`.
@@ -53,13 +59,13 @@ fn collect_flat_paths(entries: &[FileEntry], out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Run a single parallel walk of `root` and return every markdown file found.
+/// Run a single parallel walk of `root` and return every supported file found.
 ///
 /// Using `build_parallel()` amortises the gitignore/hidden-file filtering
 /// across worker threads. In contrast, a recursive per-directory walker with
 /// `max_depth(1)` re-reads and re-compiles the ignore matchers at every level,
 /// which is pathologically slow on large monorepos.
-fn walk_markdown_files(root: &Path) -> Vec<PathBuf> {
+fn walk_document_files(root: &Path) -> Vec<PathBuf> {
     let paths: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     WalkBuilder::new(root)
         .hidden(false)
@@ -71,10 +77,7 @@ fn walk_markdown_files(root: &Path) -> Vec<PathBuf> {
                     return WalkState::Continue;
                 };
                 if entry.file_type().is_some_and(|ft| ft.is_file())
-                    && entry
-                        .path()
-                        .extension()
-                        .is_some_and(|ext| ext == "md" || ext == "markdown")
+                    && crate::document::is_supported(entry.path())
                 {
                     paths.lock().unwrap().push(entry.path().to_path_buf());
                 }
@@ -84,7 +87,7 @@ fn walk_markdown_files(root: &Path) -> Vec<PathBuf> {
     paths.into_inner().unwrap_or_default()
 }
 
-/// Fold a flat list of markdown paths into a sorted `FileEntry` tree rooted at
+/// Fold a flat list of document paths into a sorted `FileEntry` tree rooted at
 /// `root`. Only directories that transitively contain a markdown file appear in
 /// the output — because every leaf inserted here is a markdown file, this falls
 /// out for free.

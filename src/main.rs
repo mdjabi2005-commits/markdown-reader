@@ -2,7 +2,9 @@ mod action;
 mod app;
 mod cast;
 mod checklinks;
+mod checkpoint;
 mod config;
+mod document;
 mod event;
 mod export;
 mod fs;
@@ -120,6 +122,22 @@ struct Cli {
     /// the binary is piped to (e.g. `cat doc.md | markdown-reader --section NAME`).
     #[arg(long, value_name = "NAME", conflicts_with_all = ["export_html", "check_links"])]
     section: Option<String>,
+
+    /// Print a read-only Git checkpoint observation and exit.
+    #[arg(long, value_name = "DIR", num_args = 0..=1, default_missing_value = ".")]
+    checkpoint: Option<PathBuf>,
+
+    /// Git ref used as the checkpoint comparison base (default: HEAD).
+    #[arg(long, value_name = "REF", requires = "checkpoint")]
+    checkpoint_base: Option<String>,
+
+    /// Newline-delimited files or directories to expose under the tree root.
+    #[arg(long, value_name = "FILE")]
+    manifest: Option<PathBuf>,
+
+    /// Count all extensions under DIR, including unsupported formats, then exit.
+    #[arg(long, value_name = "DIR", num_args = 0..=1, default_missing_value = ".")]
+    list_formats: Option<PathBuf>,
 }
 
 /// Read all of stdin into a freshly-created temp file with a `.md` suffix.
@@ -181,6 +199,25 @@ fn redirect_stdin_to_tty() -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    if let Some(ref dir) = cli.checkpoint {
+        let root = dir
+            .canonicalize()
+            .with_context(|| format!("could not resolve path: {}", dir.display()))?;
+        let base = cli.checkpoint_base.as_deref().unwrap_or("HEAD");
+        println!("{}", checkpoint::inspect(&root, base)?.render());
+        return Ok(());
+    }
+
+    if let Some(ref dir) = cli.list_formats {
+        let root = dir
+            .canonicalize()
+            .with_context(|| format!("could not resolve path: {}", dir.display()))?;
+        for (extension, count) in document::format_inventory(&root) {
+            println!("{extension}\t{count}");
+        }
+        return Ok(());
+    }
 
     // ── HTML export mode ─────────────────────────────────────────────
     // When `--export-html` is supplied, render to HTML and exit without
@@ -325,6 +362,34 @@ async fn main() -> Result<()> {
         }
     };
 
+    let allowed_paths = if let Some(manifest) = cli.manifest.as_ref() {
+        let manifest = manifest
+            .canonicalize()
+            .with_context(|| format!("could not resolve manifest: {}", manifest.display()))?;
+        let paths = document::read_manifest(&root, &manifest)?;
+        if let Some(file) = initial_file.as_ref()
+            && !paths.contains(file)
+        {
+            anyhow::bail!(
+                "initial file is outside the supplied manifest: {}",
+                file.display()
+            );
+        }
+        Some(paths)
+    } else {
+        None
+    };
+
+    // A manifest may combine project files with profile knowledge files. Use
+    // their smallest common directory only as the virtual tree root; discovery
+    // still receives the explicit file list and never scans this directory.
+    let root = if let Some(paths) = allowed_paths.as_ref().filter(|paths| !paths.is_empty()) {
+        document::common_root(paths)
+            .context("manifest entries do not share a common filesystem root")?
+    } else {
+        root
+    };
+
     // ── Version check ────────────────────────────────────────────────────
     // Load config here (before the TUI starts) solely to read the
     // `check_for_updates` flag.  App::new will load config again; the
@@ -360,7 +425,7 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let result = App::new(root, initial_file, initial_display_name)
+    let result = App::new_with_paths(root, initial_file, initial_display_name, allowed_paths)
         .run(&mut terminal)
         .await;
     // Keep `stdin_temp` alive until after the App exits so the file

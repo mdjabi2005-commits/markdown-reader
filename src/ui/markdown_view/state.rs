@@ -240,7 +240,8 @@ impl MarkdownViewState {
     ///
     /// * `path`      – filesystem path of the file being loaded.
     /// * `file_name` – display name shown in the tab bar.
-    /// * `content`   – raw markdown source.
+    /// * `content`   – raw source; non-Markdown formats are adapted to a
+    ///   fenced preview by [`crate::document::display_source`].
     /// * `palette` – color palette for the active UI theme.
     /// * `theme` – the active UI theme; forwarded to the markdown renderer
     ///   to select the matching syntect highlighting theme for fenced code blocks.
@@ -252,7 +253,8 @@ impl MarkdownViewState {
         palette: &Palette,
         theme: crate::theme::Theme,
     ) {
-        let blocks = crate::markdown::renderer::render_markdown(&content, palette, theme);
+        let display_content = crate::document::display_source(&path, &content);
+        let blocks = crate::markdown::renderer::render_markdown(&display_content, palette, theme);
         self.total_lines = blocks.iter().map(crate::markdown::DocBlock::height).sum();
         self.rendered = blocks;
         // Recompute positions with an empty text_layouts cache (layout width 0 —
@@ -261,7 +263,7 @@ impl MarkdownViewState {
         // first draw call will call update_text_layouts and then recompute_positions
         // again with accurate wrapped heights.
         self.recompute_positions();
-        self.content = content;
+        self.content = display_content;
         self.file_name = file_name;
         self.current_path = Some(path);
         self.scroll_offset = 0;

@@ -379,6 +379,8 @@ pub struct App {
     pub tree_width_pct: u16,
     /// Root directory being browsed.
     pub root: PathBuf,
+    /// Optional explicit scope supplied by a manifest; `None` means the whole root.
+    pub allowed_paths: Option<Vec<PathBuf>>,
     /// Active theme.
     pub theme: Theme,
     /// Cached style palette derived from `theme`.
@@ -499,10 +501,21 @@ impl App {
     /// * `initial_display_name` – optional override for the tab-bar label of the
     ///   initial file (e.g. `"<stdin>"` when content came from a pipe). When
     ///   `None`, the label is derived from the path's filename.
+    #[allow(dead_code)]
     pub fn new(
         root: PathBuf,
         initial_file: Option<PathBuf>,
         initial_display_name: Option<String>,
+    ) -> Self {
+        Self::new_with_paths(root, initial_file, initial_display_name, None)
+    }
+
+    /// Construct an app limited to the files in `allowed_paths`.
+    pub fn new_with_paths(
+        root: PathBuf,
+        initial_file: Option<PathBuf>,
+        initial_display_name: Option<String>,
+        allowed_paths: Option<Vec<PathBuf>>,
     ) -> Self {
         let config = Config::load();
         let palette = Palette::from_theme(config.theme);
@@ -514,7 +527,10 @@ impl App {
         let tree_discovered = if tree_hidden {
             false
         } else {
-            let entries = FileEntry::discover(&root);
+            let entries = allowed_paths.as_deref().map_or_else(
+                || FileEntry::discover(&root),
+                |paths| FileEntry::discover_paths(&root, paths),
+            );
             tree.rebuild(entries);
             true
         };
@@ -543,6 +559,7 @@ impl App {
             tree_discovered,
             tree_width_pct: 25,
             root,
+            allowed_paths,
             theme: config.theme,
             palette,
             tokens,
@@ -636,7 +653,14 @@ impl App {
 
         for tab_session in &session.tabs {
             let path = &tab_session.file;
-            if path.as_os_str().is_empty() || !path.exists() || !path.starts_with(&self.root) {
+            if path.as_os_str().is_empty()
+                || !path.exists()
+                || !path.starts_with(&self.root)
+                || self
+                    .allowed_paths
+                    .as_ref()
+                    .is_some_and(|allowed| !allowed.contains(path))
+            {
                 continue;
             }
             let Ok(content) = std::fs::read_to_string(path) else {
@@ -784,8 +808,13 @@ impl App {
             return;
         };
         let root = self.root.clone();
+        let allowed_paths = self.allowed_paths.clone();
         tokio::task::spawn_blocking(move || {
-            let _ = tx.send(Action::TreeDiscovered(FileEntry::discover(&root)));
+            let entries = allowed_paths.as_deref().map_or_else(
+                || FileEntry::discover(&root),
+                |paths| FileEntry::discover_paths(&root, paths),
+            );
+            let _ = tx.send(Action::TreeDiscovered(entries));
         });
     }
 
@@ -840,8 +869,15 @@ impl App {
             self.open_or_focus_named(file, true, None, display_name);
         }
 
+        // A scoped manifest can span several distant directories. Watching
+        // their common ancestor would observe unrelated files, so scoped mode
+        // stays deterministic and read-only; unscoped mode keeps live reload.
         let root_clone = self.root.clone();
-        let _watcher = crate::fs::watcher::spawn_watcher(&root_clone, tx.clone());
+        let _watcher = if self.allowed_paths.is_none() {
+            Some(crate::fs::watcher::spawn_watcher(&root_clone, tx.clone())?)
+        } else {
+            None
+        };
 
         loop {
             terminal.draw(|f| crate::ui::draw(f, self))?;
